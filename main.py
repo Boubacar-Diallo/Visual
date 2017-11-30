@@ -96,61 +96,33 @@ def fetch_images(query,n=1):
 			print e
 	return None
 
-
-def listen_to_mic(device_index=1,timeout=1,phrase_time_limit=1):
-	mic=sr.Microphone(device_index)
-	print mic
-
-	rec=sr.Recognizer()
-	#rec.energy_threshold = 20
-
-	with mic as source:
-		rec.adjust_for_ambient_noise(mic)
-	print "Done calibrating...."
-
-	while True:
-
-		try:
-			with mic as source:
-				data=rec.listen(source,timeout,phrase_time_limit)
-			text=rec.recognize_sphinx(data)
-			print "Raw text:",text
-
-			tokens=nltk.word_tokenize(text)
-			print "Tokens:",tokens 
-
-			tagged=nltk.pos_tag(tokens)
-			print "Tagged:",tagged 
-
-			entities=nltk.chunk.ne_chunk(tagged)
-			print "Entities:",entities
-
-			for t in tagged:
-				if t[1]=='NN':
-					print "\n\n%s\n\n"%(t[0].capitalize())
-
-		except:
-			print "T'was an error"
-			sleep(1) # sleep to allow for exit
-
-
-def get_important_word(mic,rec,timeout=1,phrase_time_limit=1):
-	
+def listen_to_mic(mic,rec,timeout=1,phrase_time_limit=1):
 	try:
-		print 'Listening'
+		print 'Listening...'
 		with mic as source:
 			data=rec.listen(source,timeout,phrase_time_limit)
 		text=rec.recognize_sphinx(data)
-		print "Raw text:",text
+		print 'Raw text:',text
+		return text
+
+	except:
+		print 'Error listening to mic.'
+		sleep(1) # sleep to allow for exit
+		return None
+
+def process_text(text):
+
+	try:
+		print 'Processing text...'
 
 		tokens=nltk.word_tokenize(text)
-		print "Tokens:",tokens 
+		print 'Tokens:',tokens
 
 		tagged=nltk.pos_tag(tokens)
-		print "Tagged:",tagged 
+		print 'Tagged:',tagged 
 
 		entities=nltk.chunk.ne_chunk(tagged)
-		print "Entities:",entities
+		print 'Entities',entities
 
 		acc_word=None
 		for t in tagged:
@@ -158,11 +130,10 @@ def get_important_word(mic,rec,timeout=1,phrase_time_limit=1):
 				print "\n\n%s\n\n"%(t[0].capitalize())
 				acc_word=t[0].capitalize()
 		return acc_word
-
 	except:
-		print "T'was an error"
-		sleep(1) # sleep to allow for exit
+		print 'Error processing text...'
 		return None
+
 
 # class to handle pushing new images to the main window
 class frame_manager(QThread):
@@ -193,7 +164,24 @@ class frame_manager(QThread):
 				sleep(1)
 			if self.stop:
 				break
-			word=get_important_word(self.mic,self.rec,timeout=5,phrase_time_limit=10)
+			#word=get_important_word(self.mic,self.rec,timeout=5,phrase_time_limit=10)
+			text=listen_to_mic(self.mic,self.rec,timeout=5,phrase_time_limit=10)
+			if text is not None:
+				word=process_text(text)
+				if word is not None:
+					fname=fetch_images(word)
+					if fname is not None:
+						self.pic_path=fname
+						self.update_gui.emit()
+					else:
+						print "Couldn't find any images."
+				else:
+					print "No important words."
+
+			else:
+				print "Didn't hear any words."
+
+			'''
 			if word is not None:
 				fname=fetch_images(word)
 				if fname is not None:
@@ -204,6 +192,7 @@ class frame_manager(QThread):
 					print 'Could not download images'
 			else:
 				print "Didn't read any words."
+			'''
 			#sleep(self.refresh_rate)
 
 # main UI window
@@ -252,10 +241,18 @@ class main_window(QWidget):
 			print 'Updating picture w/%s.'%self.update_manager.pic_path
 			try:
 				self.current_frame=QPixmap(self.update_manager.pic_path)
-				self.current_frame=self.current_frame.scaled(555,520)
+				#self.current_frame=self.current_frame.scaled(555,520)
+				self.current_frame=self.current_frame.scaled(self.size().width()-50,self.size().height()-50)
 				self.main_image.setPixmap(self.current_frame)
 			except:
 				print 'Could not load new frame.'
+
+	def resizeEvent(self,e):
+		# called when user resizes the window, should re-scale the current image
+		if hasattr(self,'current_frame'):
+			# if we have an image
+			self.current_frame=self.current_frame.scaled(self.size().width()-50,self.size().height()-50)
+			self.main_image.setPixmap(self.current_frame)
 
 	def start_listening(self):
 		self.update_manager.pause=False
