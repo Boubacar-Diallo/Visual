@@ -52,9 +52,15 @@ def fetch_images(query,n=1):
 	soup = get_soup(url,header)
 
 	ActualImages=[]# contains the link for Large original images, type of  image
+	i=0
 	for a in soup.find_all("div",{"class":"rg_meta"}):
+
+		if i>5+n:
+			break
+
 		link , Type =json.loads(a.text)["ou"]  ,json.loads(a.text)["ity"]
 		ActualImages.append((link,Type))
+		i+=1
 
 	print  "there are total" , len(ActualImages),"images"
 
@@ -65,10 +71,8 @@ def fetch_images(query,n=1):
 	if not os.path.exists(DIR):
 				os.mkdir(DIR)
 	###print images
+	found_image=False
 	for i , (img , Type) in enumerate( ActualImages):
-
-		if i>1:
-			return
 
 		try:
 			req = urllib2.Request(img, headers={'User-Agent' : header})
@@ -77,15 +81,20 @@ def fetch_images(query,n=1):
 			cntr = len([i for i in os.listdir(DIR) if image_type in i]) + 1
 			print cntr
 			if len(Type)==0:
+				fname=os.path.join(DIR , image_type + "_"+ str(cntr)+".jpg")
 				f = open(os.path.join(DIR , image_type + "_"+ str(cntr)+".jpg"), 'wb')
 			else :
+				fname=os.path.join(DIR , image_type + "_"+ str(cntr)+"."+Type)
 				f = open(os.path.join(DIR , image_type + "_"+ str(cntr)+"."+Type), 'wb')
 
 			f.write(raw_img)
 			f.close()
+			return fname
+
 		except Exception as e:
 			print "could not load : "+img
 			print e
+	return None
 
 
 def listen_to_mic(device_index=1,timeout=1,phrase_time_limit=1):
@@ -125,18 +134,10 @@ def listen_to_mic(device_index=1,timeout=1,phrase_time_limit=1):
 			sleep(1) # sleep to allow for exit
 
 
-def get_important_word(device_index=1,timeout=1,phrase_time_limit=1):
-	mic=sr.Microphone(device_index)
-	print mic
-
-	rec=sr.Recognizer()
-	#rec.energy_threshold = 20
-
-	with mic as source:
-		rec.adjust_for_ambient_noise(mic)
-	print "Done calibrating...."
-
+def get_important_word(mic,rec,timeout=1,phrase_time_limit=1):
+	
 	try:
+		print 'Listening'
 		with mic as source:
 			data=rec.listen(source,timeout,phrase_time_limit)
 		text=rec.recognize_sphinx(data)
@@ -152,7 +153,6 @@ def get_important_word(device_index=1,timeout=1,phrase_time_limit=1):
 		print "Entities:",entities
 
 		acc_word=None
-
 		for t in tagged:
 			if t[1]=='NN':
 				print "\n\n%s\n\n"%(t[0].capitalize())
@@ -178,6 +178,14 @@ class frame_manager(QThread):
 		self.pause=True
 		self.pic_path=None
 		self.refresh_rate=10 # seconds
+		device_index=1
+		self.mic=sr.Microphone(device_index)
+		print self.mic
+		self.rec=sr.Recognizer()
+		#rec.energy_threshold = 20
+		with self.mic as source:
+			self.rec.adjust_for_ambient_noise(source)
+		print "Done calibrating...."
 
 	def run(self):
 		while True:
@@ -185,11 +193,18 @@ class frame_manager(QThread):
 				sleep(1)
 			if self.stop:
 				break
-			word=get_important_word()
-			fetch_images(word)
-			self.pic_path='Pictures/%s/ActiOn_1.jpg'
-			self.update_gui.emit()
-			sleep(self.refresh_rate)
+			word=get_important_word(self.mic,self.rec,timeout=5,phrase_time_limit=10)
+			if word is not None:
+				fname=fetch_images(word)
+				if fname is not None:
+					self.pic_path=fname
+					#sleep(2)
+					self.update_gui.emit()
+				else:
+					print 'Could not download images'
+			else:
+				print "Didn't read any words."
+			#sleep(self.refresh_rate)
 
 # main UI window
 class main_window(QWidget):
@@ -234,7 +249,7 @@ class main_window(QWidget):
 		if self.update_manager.pic_path==None:
 			print 'Update manager is being lazy.'
 		else:
-			print 'Updating picture.'
+			print 'Updating picture w/%s.'%self.update_manager.pic_path
 			try:
 				self.current_frame=QPixmap(self.update_manager.pic_path)
 				self.current_frame=self.current_frame.scaled(555,520)
@@ -252,11 +267,12 @@ def main():
 	#print_mics()
 	#listen_to_mic(1,1,5)
 
+	#'''
 	# to open the GUI window
 	app=QApplication(sys.argv)
 	_=main_window()
 	sys.exit(app.exec_())
-
+	#'''
 
 if __name__ == '__main__':
 	main()
