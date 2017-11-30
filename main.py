@@ -24,11 +24,13 @@ import cookielib
 import json
 
 
-'''
-for index, name in enumerate(sr.Microphone.list_microphone_names()):
-    print("Microphone with name \"{1}\" found for `Microphone(device_index={0})`".format(index, name))
-'''
+# print out all available microphones on current computer
+def print_mics():
+	for index, name in enumerate(sr.Microphone.list_microphone_names()):
+	    print("Microphone with name \"{1}\" found for `Microphone(device_index={0})`".format(index, name))
 
+
+# saves 100 images related to 'query' into Pictures directory
 def fetch_images(query):
 	def get_soup(url,header):
 	    return BeautifulSoup(urllib2.urlopen(urllib2.Request(url,headers=header)),'html.parser')
@@ -78,7 +80,7 @@ def fetch_images(query):
 	        print e
 
 
-def listen_to_mic():
+def listen_to_mic(device_index=1):
 	mic=sr.Microphone(device_index=1)
 	print mic
 
@@ -115,4 +117,9 @@ def listen_to_mic():
 			sleep(1) # sleep to allow for exit
 
 
-fetch_images('horse')
+#fetch_images('horse')
+print_mics()
+
+
+
+
