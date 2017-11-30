@@ -6,6 +6,7 @@
 # SpeechRecognition
 # pyaudio
 # pocketsphinx
+# nltk (+ data for it)
 
 import speech_recognition as sr
 from time import sleep
@@ -80,8 +81,8 @@ def fetch_images(query):
 	        print e
 
 
-def listen_to_mic(device_index=1):
-	mic=sr.Microphone(device_index=1)
+def listen_to_mic(device_index=1,timeout=1,phrase_time_limit=1):
+	mic=sr.Microphone(device_index)
 	print mic
 
 	rec=sr.Recognizer()
@@ -95,7 +96,7 @@ def listen_to_mic(device_index=1):
 
 		try:
 			with mic as source:
-				data=rec.listen(source,timeout=1,phrase_time_limit=1)
+				data=rec.listen(source,timeout,phrase_time_limit)
 			text=rec.recognize_sphinx(data)
 			print "Raw text:",text
 
@@ -118,7 +119,8 @@ def listen_to_mic(device_index=1):
 
 
 #fetch_images('horse')
-print_mics()
+#print_mics()
+listen_to_mic(0,1,5)
 
 
 
