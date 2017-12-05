@@ -9,7 +9,7 @@
 # nltk (+ data for it)
 
 import speech_recognition as sr
-from time import sleep
+from time import sleep,time
 import nltk
 # need to add support for GoogleScraper library
 # so I can fetch the images, everything else seems
@@ -37,14 +37,21 @@ def print_mics():
 
 # saves 100 images related to 'query' into Pictures directory
 def fetch_images(query,n=1):
+
+	# prepare query if it contains more than one word
+	if len(query.split(' '))>1:
+		query='+'.join(query.split(" "))
+
 	def get_soup(url,header):
 		return BeautifulSoup(urllib2.urlopen(urllib2.Request(url,headers=header)),'html.parser')
+
+	print 'Fetching picture of %s'%query
 
 	image_type="ActiOn"
 	query= query.split()
 	query='+'.join(query)
 	url="https://www.google.co.in/search?q="+query+"&source=lnms&tbm=isch"
-	print url
+	#print url
 	#add the directory for your image here
 	DIR="Pictures"
 	header={'User-Agent':"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.134 Safari/537.36"
@@ -55,14 +62,14 @@ def fetch_images(query,n=1):
 	i=0
 	for a in soup.find_all("div",{"class":"rg_meta"}):
 
-		if i>5+n:
+		if i>2+n:
 			break
 
 		link , Type =json.loads(a.text)["ou"]  ,json.loads(a.text)["ity"]
 		ActualImages.append((link,Type))
 		i+=1
 
-	print  "there are total" , len(ActualImages),"images"
+	#print  "there are total" , len(ActualImages),"images"
 
 	if not os.path.exists(DIR):
 				os.mkdir(DIR)
@@ -79,7 +86,7 @@ def fetch_images(query,n=1):
 			raw_img = urllib2.urlopen(req).read()
 
 			cntr = len([i for i in os.listdir(DIR) if image_type in i]) + 1
-			print cntr
+			#print cntr
 			if len(Type)==0:
 				fname=os.path.join(DIR , image_type + "_"+ str(cntr)+".jpg")
 				f = open(os.path.join(DIR , image_type + "_"+ str(cntr)+".jpg"), 'wb')
@@ -99,12 +106,12 @@ def fetch_images(query,n=1):
 def listen_to_mic(mic,rec,timeout=1,phrase_time_limit=1):
 	try:
 		print 'Listening...'
+		sys.stdout.flush() # flush terminal output (was having issues before)
 		with mic as source:
 			data=rec.listen(source,timeout,phrase_time_limit)
 		text=rec.recognize_sphinx(data)
 		print 'Raw text:',text
 		return text
-
 	except:
 		print 'Error listening to mic.'
 		sleep(1) # sleep to allow for exit
@@ -116,24 +123,34 @@ def process_text(text):
 		print 'Processing text...'
 
 		tokens=nltk.word_tokenize(text)
-		print 'Tokens:',tokens
+		#print 'Tokens:',tokens
 
 		tagged=nltk.pos_tag(tokens)
 		print 'Tagged:',tagged 
 
-		entities=nltk.chunk.ne_chunk(tagged)
-		print 'Entities',entities
+		#entities=nltk.chunk.ne_chunk(tagged)
+		#print 'Entities',entities
 
-		acc_word=None
+		nouns={} # dict, maps from noun to it's count
 		for t in tagged:
 			if t[1]=='NN':
-				print "\n\n%s\n\n"%(t[0].capitalize())
-				acc_word=t[0].capitalize()
-		return acc_word
+				noun=t[0].capitalize()
+				if noun not in nouns:
+					nouns[noun]=1 # add to dict
+				else:
+					nouns[noun]+=1
+		if len(nouns)==0:
+			print "No nouns were heard!"
+			return None
+		else:
+			most_freq_noun=None
+			for key,val in nouns.items():
+				if most_freq_noun==None or val>nouns[most_freq_noun]:
+					most_freq_noun=key 
+			return most_freq_noun
 	except:
 		print 'Error processing text...'
 		return None
-
 
 # class to handle pushing new images to the main window
 class frame_manager(QThread):
@@ -165,11 +182,14 @@ class frame_manager(QThread):
 			if self.stop:
 				break
 			#word=get_important_word(self.mic,self.rec,timeout=5,phrase_time_limit=10)
-			text=listen_to_mic(self.mic,self.rec,timeout=5,phrase_time_limit=10)
+			text=listen_to_mic(self.mic,self.rec,timeout=1,phrase_time_limit=3)
 			if text is not None:
-				word=process_text(text)
+				#word=process_text(text)
+				word=text
 				if word is not None:
+					t0=time()
 					fname=fetch_images(word)
+					print 'Took %0.5f seconds to load image.'%(time()-t0)
 					if fname is not None:
 						self.pic_path=fname
 						self.update_gui.emit()
@@ -180,20 +200,6 @@ class frame_manager(QThread):
 
 			else:
 				print "Didn't hear any words."
-
-			'''
-			if word is not None:
-				fname=fetch_images(word)
-				if fname is not None:
-					self.pic_path=fname
-					#sleep(2)
-					self.update_gui.emit()
-				else:
-					print 'Could not download images'
-			else:
-				print "Didn't read any words."
-			'''
-			#sleep(self.refresh_rate)
 
 # main UI window
 class main_window(QWidget):
