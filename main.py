@@ -214,7 +214,7 @@ class main_window(QWidget):
 		# ensure the pictures folder exists
 		if not os.path.exists('pictures'):
 			print 'Created pictures directory.'
-			os.makedir('pictures')
+			os.mkdir('pictures')
 		else:
 			print 'pictures directory already exists.'
 
